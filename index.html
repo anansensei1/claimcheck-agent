@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClaimCheck Agent — live demo</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  label { display: block; margin-top: .8rem; font-weight: 600; }
+  input, select { width: 100%; padding: .45rem; margin-top: .2rem; box-sizing: border-box; }
+  button { margin-top: 1rem; padding: .6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+  pre { background: #111; color: #d6ffd6; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+  .verdict-true { color: #0a7d2c; font-weight: 700; }
+  .verdict-false { color: #b00020; font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>ClaimCheck Agent</h1>
+<p>An agent that <strong>checks claims about on-chain state</strong> and returns a structured
+attestation anyone can re-verify. Don't trust the agent — verify it: same claim, same block,
+same RPC call, same verdict.</p>
+
+<label>Claim type
+  <select id="type">
+    <option value="nft-owner">NFT ownership (ownerOf)</option>
+    <option value="native-balance">Native balance at least…</option>
+    <option value="token-balance">ERC-20 balance at least…</option>
+  </select>
+</label>
+<label>Chain
+  <select id="chain">
+    <option value="bsc">BNB Smart Chain</option>
+    <option value="base">Base</option>
+    <option value="ethereum">Ethereum</option>
+    <option value="robinhood">Robinhood Chain</option>
+  </select>
+</label>
+<label>Contract address <input id="contract" value="0xea404392be487b90f45b8436a52623bc7dbd8515"></label>
+<label id="row-token">Token ID <input id="tokenId" value="999"></label>
+<label id="row-owner">Claimed owner address <input id="owner" value="0x20384D078cd86068DB9a629facb5f79394cd9712"></label>
+<label id="row-addr" style="display:none">Address <input id="address" value="0x20384D078cd86068DB9a629facb5f79394cd9712"></label>
+<label id="row-min" style="display:none">Minimum (raw units / wei) <input id="min" value="1000000000000000"></label>
+
+<button id="go">Verify claim</button>
+<p id="verdict"></p>
+<pre id="out">Attestation will appear here.</pre>
+
+<script type="module">
+import { verifyClaim } from "./claimcheck.js";
+
+const $ = (id) => document.getElementById(id);
+function syncRows() {
+  const t = $("type").value;
+  $("row-token").style.display = t === "nft-owner" ? "" : "none";
+  $("row-owner").style.display = t === "nft-owner" ? "" : "none";
+  $("row-addr").style.display  = t === "nft-owner" ? "none" : "";
+  $("row-min").style.display   = t === "nft-owner" ? "none" : "";
+  $("contract").parentElement.style.display = t === "native-balance" ? "none" : "";
+}
+$("type").addEventListener("change", syncRows);
+syncRows();
+
+$("go").addEventListener("click", async () => {
+  const t = $("type").value;
+  const claim = { type: t, chain: $("chain").value };
+  if (t === "nft-owner") {
+    claim.contract = $("contract").value.trim();
+    claim.tokenId = Number($("tokenId").value);
+    claim.owner = $("owner").value.trim();
+  } else if (t === "native-balance") {
+    claim.address = $("address").value.trim();
+    claim.minWei = $("min").value.trim();
+  } else {
+    claim.contract = $("contract").value.trim();
+    claim.address = $("address").value.trim();
+    claim.minRaw = $("min").value.trim();
+  }
+  $("verdict").textContent = "Checking…";
+  $("out").textContent = "";
+  try {
+    const att = await verifyClaim(claim);
+    $("verdict").innerHTML = att.verdict
+      ? '<span class="verdict-true">VERDICT: CLAIM TRUE</span>'
+      : '<span class="verdict-false">VERDICT: CLAIM FALSE</span>';
+    $("out").textContent = JSON.stringify(att, null, 2);
+  } catch (e) {
+    $("verdict").textContent = "Error: " + e.message;
+  }
+});
+</script>
+</body>
+</html>
